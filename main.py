@@ -1,7 +1,7 @@
 from bs4 import BeautifulSoup
 import requests as req
 from logzero import logger
-from urllib.parse import quote
+from urllib.parse import quote, urlencode
 
 import config.form_method as form_method
 from utils.cookies import cookie_parser 
@@ -53,19 +53,26 @@ def main():
         script_tags = parsed.find_all('script')
         if len(script_tags) > 0:
             for script_tag in script_tags:
-                js_file = req.get(f"{URL}/{script_tag['src']}")
-                raw_js_files.append(js_file.content)
-    # print(payloads)
+                try:
+                    js_file = req.get(f"{URL}/{script_tag['src']}")
+                    raw_js_files.append(js_file.content)
+                except:
+                    pass
+    
     # get all input tag
-    if(parsed.find_all('input')):
+    if parsed.find_all('input'):
         input_tags = parsed.find_all('input')
         if len(input_tags) > 0:
             filtered_input_tags = list(filter(filterInputTag, input_tags))
             filtered_submit_button += list(filter(filterButtonTag, input_tags))
-    if(parsed.find_all('button')):
+    if parsed.find_all('button'):
         button_tags = parsed.find_all('button')
         if len(button_tags) > 0:
             filtered_submit_button += button_tags
+    if parsed.find_all('select'):
+        # select_tags = parsed.find_all('select')
+        # option_tags = select_tags.findChildren('option')
+        print(parsed)
     
     logger.info(f"Searching possibility reflected XSS")
     # Schema 1
@@ -75,20 +82,30 @@ def main():
             queries = []
             logger.info(f"Schema #1")
             for input_tag in filtered_input_tags:
-                queries.append(input_tag['name'])
-            for payload in payloads:
-                params = [(quote(query), quote(payload)) for query in queries]
-                res = req.get(
-                    URL,
-                    params=params
-                )
-                logger.warning(f"Testing {URL}")
-                logger.warning(f"{payload} (PAYLOADS)")
-                if res.status_code == 200:
-                    print(f"Len data: {len(res.content)}")
-                if res.status_code != 200:
-                    logger.error(f"Error Status Code : {res.status_code}")
-                print(f"Status Code: {res.status_code}")
+                try:                    
+                    queries.append(input_tag['name'])
+                except:
+                    pass
+            
+            # if parameter url not found
+            if len(queries) == 0:
+                logger.warning('Stopped, no possibility was found')
+
+            if len(queries) > 0:
+                for payload in payloads:
+                    params = [(quote(query), quote(payload)) for query in queries]
+                    print(params, ' params')
+                    res = req.get(
+                        URL,
+                        params=params
+                    )
+                    logger.warning(f"Testing {URL}{urlencode(params)}")
+                    logger.warning(f"{payload} (PAYLOADS)")
+                    if res.status_code == 200:
+                        print(f"Len data: {len(res.content)}")
+                    if res.status_code != 200:
+                        logger.error(f"Error Status Code : {res.status_code}")
+                    print(f"Status Code: {res.status_code}")
                 
     
     # logger.debug(f"Filtered Input Tags")
