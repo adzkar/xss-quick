@@ -1,12 +1,18 @@
 from bs4 import BeautifulSoup
 import requests as req
 from logzero import logger
-import config.form_method as form_method
 from urllib.parse import quote
+
+import config.form_method as form_method
+from utils.cookies import cookie_parser 
 
 # global config
 URL = 'http://localhost/vulnerabilities/xss_r/'
-payloads = open('payload.txt','r').read().splitlines()
+CREDENTIALS = "PHPSESSID=um6tdlfb1n31n2ethb3cs7kv65; security=low"
+
+
+with open('payload.txt','r') as file:
+    payloads = file.read().splitlines()
 
 def filterInputTag(tag):
     if tag.has_attr('type'):
@@ -29,7 +35,16 @@ def main():
     filtered_input_tags = []
     filtered_submit_button = []
     raw_js_files = []
-    res = req.get(URL)
+    res = req.get(URL, cookies=cookie_parser(CREDENTIALS))
+    
+    # checking response if has history
+    history = res.history
+
+    if len(history) > 0:
+        if history[0].status_code == 302:
+            logger.error('Stopped, Need Credentials')
+            exit(1)
+    
     parsed = BeautifulSoup(res.content, 'html.parser')
     # get js file
     # if loading js file
